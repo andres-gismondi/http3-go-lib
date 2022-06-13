@@ -8,6 +8,12 @@ import (
 
 type HttpOption func(*client)
 
+func BaseURL(url string) HttpOption {
+	return func(c *client) {
+		c.options.baseURL = url
+	}
+}
+
 func Logger(log *log.Logger) HttpOption {
 	return func(c *client) {
 		c.options.logger = log

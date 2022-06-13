@@ -15,8 +15,22 @@ import (
 	"form3"
 )
 
-const baseURL = "https://api.form3.tech/v1/organisation/accounts"
+const (
+	defaultBaseURL = "https://api.form3.tech/v1"
+	path           = "/v1/organisation/accounts"
+)
 
+var (
+	ErrResourceNotExist = errors.New("resource does not exist")
+	ErrIncorrectVersion = errors.New("incorrect version")
+)
+
+// client implement a http around package http.Client.
+//
+// To use client, create an instance with NewClient.
+// Use HttpOptions (Functional Options) to set every feature need it.
+//
+// The list of HttpOptions can be found un the correspondent go file
 type client struct {
 	id             string
 	accountType    string
@@ -27,6 +41,7 @@ type client struct {
 }
 
 type httpOptions struct {
+	baseURL string
 	logger  *log.Logger
 	timeout time.Duration
 }
@@ -39,7 +54,9 @@ func NewClient(id string, accountType string, organizationId string, opts ...Htt
 		httpClient:     &http.Client{},
 	}
 
+	// default options need it to initialize and can be overriden
 	var defaultOptions = []HttpOption{
+		BaseURL(defaultBaseURL),
 		Logger(log.StandardLogger()),
 		Timeout(2 * time.Second),
 	}
@@ -66,7 +83,7 @@ func (c *client) Create(ctx context.Context, name []string, country string, opti
 		return model.AccountData{}, err
 	}
 
-	req, err := http.NewRequest("POST", getURL(""), encodedBody)
+	req, err := http.NewRequest("POST", c.getURL(""), encodedBody)
 	if err != nil {
 		return model.AccountData{}, err
 	}
@@ -85,7 +102,7 @@ func (c *client) Create(ctx context.Context, name []string, country string, opti
 }
 
 func (c *client) Fetch(ctx context.Context, id string) (model.AccountData, error) {
-	url := getURL("/" + id)
+	url := c.getURL("/" + id)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return model.AccountData{}, err
@@ -106,7 +123,7 @@ func (c *client) Fetch(ctx context.Context, id string) (model.AccountData, error
 }
 
 func (c *client) Delete(ctx context.Context, accountID string, version int) error {
-	url := getURL("/" + accountID + "?version=" + strconv.Itoa(version))
+	url := c.getURL("/" + accountID + "?version=" + strconv.Itoa(version))
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		return err
@@ -119,10 +136,10 @@ func (c *client) Delete(ctx context.Context, accountID string, version int) erro
 	defer res.Body.Close()
 
 	if res.Status == strconv.Itoa(http.StatusNotFound) {
-		return errors.New("resource does not exist")
+		return ErrResourceNotExist
 	}
 	if res.Status == strconv.Itoa(http.StatusConflict) {
-		return errors.New("incorrect version")
+		return ErrIncorrectVersion
 	}
 
 	return nil
@@ -137,6 +154,6 @@ func encode(value interface{}) (*bytes.Buffer, error) {
 	return &buf, nil
 }
 
-func getURL(url string) string {
-	return baseURL + url
+func (c *client) getURL(url string) string {
+	return c.options.baseURL + path + url
 }
