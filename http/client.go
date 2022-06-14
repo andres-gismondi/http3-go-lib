@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,13 +16,8 @@ import (
 )
 
 const (
-	defaultBaseURL = "https://api.form3.tech/v1"
+	defaultBaseURL = "https://api.staging-form3.tech"
 	path           = "/v1/organisation/accounts"
-)
-
-var (
-	ErrResourceNotExist = errors.New("resource does not exist")
-	ErrIncorrectVersion = errors.New("incorrect version")
 )
 
 // client implement a http around package http.Client.
@@ -41,6 +36,7 @@ type client struct {
 }
 
 type httpOptions struct {
+	headers map[string]string
 	baseURL string
 	logger  *log.Logger
 	timeout time.Duration
@@ -54,11 +50,15 @@ func NewClient(id string, accountType string, organizationId string, opts ...Htt
 		httpClient:     &http.Client{},
 	}
 
+	defHeaders := map[string]string{
+		"Content-Type": "application/vnd.api+json",
+	}
 	// default options need it to initialize and can be overriden
 	var defaultOptions = []HttpOption{
 		BaseURL(defaultBaseURL),
 		Logger(log.StandardLogger()),
 		Timeout(2 * time.Second),
+		Headers(defHeaders),
 	}
 
 	options := append(defaultOptions, opts...)
@@ -88,7 +88,7 @@ func (c *client) Create(ctx context.Context, name []string, country string, opti
 		return model.AccountData{}, err
 	}
 
-	res, err := c.httpClient.Do(req.WithContext(ctx))
+	res, err := c.do(req.WithContext(ctx))
 	if err != nil {
 		return model.AccountData{}, err
 	}
@@ -108,7 +108,7 @@ func (c *client) Fetch(ctx context.Context, id string) (model.AccountData, error
 		return model.AccountData{}, err
 	}
 
-	res, err := c.httpClient.Do(req.WithContext(ctx))
+	res, err := c.do(req.WithContext(ctx))
 	if err != nil {
 		return model.AccountData{}, err
 	}
@@ -129,20 +129,26 @@ func (c *client) Delete(ctx context.Context, accountID string, version int) erro
 		return err
 	}
 
-	res, err := c.httpClient.Do(req.WithContext(ctx))
+	res, err := c.do(req.WithContext(ctx))
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
 
-	if res.Status == strconv.Itoa(http.StatusNotFound) {
-		return ErrResourceNotExist
-	}
-	if res.Status == strconv.Itoa(http.StatusConflict) {
-		return ErrIncorrectVersion
+	return nil
+}
+
+func (c *client) do(req *http.Request) (*http.Response, error) {
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		return nil, fmt.Errorf("account api error: %s", res.Status)
+	}
+
+	return res, nil
 }
 
 func encode(value interface{}) (*bytes.Buffer, error) {

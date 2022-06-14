@@ -12,8 +12,7 @@ services:
       - VAULT_TOKEN=8fb95528-57c6-422e-9722-d2147bcba8ed
       - PSQL_USER=root
       - PSQL_PASSWORD=password
-      - PSQL_HOST=postgresql
-      - PSQL_PORT=5432
+      - PSQL_PORT=9000
       - STACK_NAME=f3-interview-accountapi
       - DATABASE-HOST=postgresql
       - DATABASE-SSL-MODE=disable
@@ -21,6 +20,7 @@ services:
       - DATABASE-PASSWORD=123
     ports:
       - 8080:8080
+
   postgresql:
     image: postgres:9.5-alpine
     healthcheck:
@@ -32,23 +32,13 @@ services:
     environment:
       - POSTGRES_USER=root
       - POSTGRES_PASSWORD=password
+    ports:
+      - 9000:9000
     volumes:
-      - ./scripts/db:/docker-entrypoint-initdb.d/
+      - ./test/scripts/db:/docker-entrypoint-initdb.d/
 
   vault:
     image: vault:1.6.3
     environment:
       - SKIP_SETCAP=1
       - VAULT_DEV_ROOT_TOKEN_ID=8fb95528-57c6-422e-9722-d2147bcba8ed
-
-  test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: golang:1.18
-    environment:
-      - GO111MODULE=on
-    depends_on:
-      - accountapi
-      - postgresql
-      - vault

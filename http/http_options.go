@@ -14,6 +14,12 @@ func BaseURL(url string) HttpOption {
 	}
 }
 
+func Headers(headers map[string]string) HttpOption {
+	return func(c *client) {
+		c.options.headers = headers
+	}
+}
+
 func Logger(log *log.Logger) HttpOption {
 	return func(c *client) {
 		c.options.logger = log
